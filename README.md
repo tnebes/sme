@@ -17,8 +17,8 @@ a cross-platform UI.
 
 The easiest way to use the application is to download a pre-built version from the releases page.
 
-1. Go to the [Releases](https://github.com/tnebes/SME/releases) page of this repository.
-2. Download the `.zip` file for your operating system (e.g., `SME-win-x64.zip`).
+1. Go to the [Releases](https://github.com/tnebes/sme/releases) page of this repository.
+2. Download the `.zip` file for your operating system (e.g., `sme-win-x64.zip`).
 3. Extract the contents of the zip file to a new folder on your computer.
 4. Double-click `StrongholdMapEditor.exe` (on Windows) or run the corresponding executable to start the application.
 
@@ -34,8 +34,8 @@ If you want to build the project from the source code, follow these steps:
 #### 2. Clone the Repository
 
 ```sh
-git clone https://github.com/tnebes/SME.git
-cd SME
+git clone https://github.com/tnebes/sme.git
+cd sme
 ```
 
 #### 3. Build and Run
