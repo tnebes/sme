@@ -6,6 +6,10 @@ you to modify `.map` files to change their type or unlock them for editing.
 This project is a rewrite of an original 2001 tool called `Gunnie`, reverse-engineered and implemented in modern C# with
 a cross-platform UI.
 
+## Purpose
+
+The purpose of this tool is to allow users to 'unlock' Stronghold Crusader maps so they can be opened and edited in the Map editor of the game.
+
 ## Features
 
 - **Unlock Maps:** Modify a map file to allow it to be opened and edited in the official Stronghold map editor.
