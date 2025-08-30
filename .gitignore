@@ -7,3 +7,4 @@ sme.log
 *.c
 Folder.DotSettings.user
 *.md
+!README.md

@@ -1,7 +1,5 @@
 #region
 
-#region
-
 using System;
 using System.IO;
 using Eto;
@@ -13,7 +11,12 @@ using Serilog;
 
 namespace SME;
 
-#endregion
+public enum MapAction
+{
+    Unlock,
+    MakeInvasion,
+    MakeSiege
+}
 
 public static class Program
 {
@@ -47,8 +50,8 @@ public static class Program
 
 public sealed class MainForm : Form
 {
-    private static readonly int CurrentYear = DateTime.Now.Year;
     private const string Author = "tnebes";
+    private static readonly int CurrentYear = DateTime.Now.Year;
     private readonly Label _selectedFileLabel;
     private readonly Label _statusLabel;
     private string _mapFilePath;
@@ -66,13 +69,13 @@ public sealed class MainForm : Form
         this._statusLabel = new Label { Text = "Select a map file to begin." };
 
         Button unlockButton = new() { Text = "Unlock Map" };
-        unlockButton.Click += (s, e) => this.UnlockOrChangeMap("Unlock Map", [0x00, 0x00]);
+        unlockButton.Click += (s, e) => this.UnlockOrChangeMap(MapAction.Unlock);
 
         Button invasionButton = new() { Text = "Make Invasion Map" };
-        invasionButton.Click += (s, e) => this.UnlockOrChangeMap("Make Invasion Map", [0x00, 0x00]);
+        invasionButton.Click += (s, e) => this.UnlockOrChangeMap(MapAction.MakeInvasion);
 
         Button siegeButton = new() { Text = "Make Siege Map" };
-        siegeButton.Click += (s, e) => this.UnlockOrChangeMap("Make Siege Map", [0x01, 0x00]);
+        siegeButton.Click += (s, e) => this.UnlockOrChangeMap(MapAction.MakeSiege);
 
         GroupBox actionsGroupBox = new() { Text = "Map Actions" };
         actionsGroupBox.Content = new StackLayout
@@ -84,7 +87,7 @@ public sealed class MainForm : Form
 
         Label footerLabel = new()
         {
-            Text = $"By ${Author}, {CurrentYear}",
+            Text = $"By {Author}, {CurrentYear}",
             TextColor = Colors.Gray,
             TextAlignment = TextAlignment.Center
         };
@@ -130,8 +133,26 @@ public sealed class MainForm : Form
         }
     }
 
-    private void UnlockOrChangeMap(string action, byte[] valueToWrite)
+    private void UnlockOrChangeMap(MapAction action)
     {
+        /*
+         * IMPORTANT: The logic for calculating the write offset is complex and was derived
+         * from reverse-engineering an original 2001 executable. It is not a fixed offset.
+         * The calculation involves reading two separate pointer values from within the map
+         * file itself to dynamically find the correct address for the game type flag.
+         *
+         * The formula is, in essence:
+         *   val1 = Read 2 bytes at offset 0x04
+         *   offset_b = val1 + 8
+         *   val2 = Read 2 bytes at offset offset_b
+         *   final_offset = offset_b + 0x3c + val2
+         *
+         * An empirical, off-by-one error was discovered during testing, requiring a -1
+         * adjustment for the "Unlock Map" action. The reason for this discrepancy is
+         * unclear from the disassembly but is necessary for the correct behavior.
+         * The "Change Type" actions (Invasion/Siege) require a different adjustment (-4).
+         */
+
         if (string.IsNullOrEmpty(this._mapFilePath) || !File.Exists(this._mapFilePath))
         {
             Program.Log.Warning("UnlockOrChangeMap called but no file was selected.");
@@ -140,11 +161,27 @@ public sealed class MainForm : Form
             return;
         }
 
-        Program.Log.Information("Attempting action '{Action}' on file {File}", action, this._mapFilePath);
-        this._statusLabel.Text = $"Attempting action '{action}'...";
+        string actionName = action switch
+        {
+            MapAction.Unlock => "Unlock Map",
+            MapAction.MakeInvasion => "Make Invasion Map",
+            MapAction.MakeSiege => "Make Siege Map",
+            _ => "Unknown Action"
+        };
+
+        Program.Log.Information("Attempting action '{Action}' on file {File}", actionName, this._mapFilePath);
+        this._statusLabel.Text = $"Attempting action '{actionName}'...";
 
         try
         {
+            byte[] valueToWrite = action switch
+            {
+                MapAction.Unlock => [0x00, 0x00],
+                MapAction.MakeInvasion => [0x00, 0x00],
+                MapAction.MakeSiege => [0x01, 0x00],
+                _ => throw new ArgumentOutOfRangeException(nameof(action), action, null)
+            };
+
             using FileStream stream = new(this._mapFilePath, FileMode.Open, FileAccess.ReadWrite);
             using BinaryReader reader = new(stream);
             using BinaryWriter writer = new(stream);
@@ -157,15 +194,7 @@ public sealed class MainForm : Form
 
             long finalOffsetBase = offsetB + 0x3c + val2;
 
-            long writeOffset;
-            if (action == "Unlock Map")
-            {
-                writeOffset = finalOffsetBase - 1; // Corrected off-by-one error
-            }
-            else
-            {
-                writeOffset = finalOffsetBase - 4;
-            }
+            long writeOffset = action == MapAction.Unlock ? finalOffsetBase - 1 : finalOffsetBase - 4;
 
             Program.Log.Debug("Calculated values: val1={Val1:X4}, val2={Val2:X4}, write_offset={WriteOffset:X}",
                 val1, val2, writeOffset);
@@ -173,7 +202,7 @@ public sealed class MainForm : Form
             stream.Seek(writeOffset, SeekOrigin.Begin);
             writer.Write(valueToWrite);
 
-            string successMsg = $"Success! '{action}' applied to {Path.GetFileName(this._mapFilePath)}.";
+            string successMsg = $"Success! '{actionName}' applied to {Path.GetFileName(this._mapFilePath)}.";
             this._statusLabel.Text = successMsg;
             Program.Log.Information(successMsg);
             MessageBox.Show(
@@ -184,7 +213,8 @@ public sealed class MainForm : Form
         catch (Exception ex)
         {
             this._statusLabel.Text = $"Error: {ex.Message}";
-            Program.Log.Error(ex, "An error occurred while trying to modify map file for action '{Action}'", action);
+            Program.Log.Error(ex, "An error occurred while trying to modify map file for action '{Action}'",
+                actionName);
             MessageBox.Show(this, "An error occurred: {ex.Message}", "Error", MessageBoxButtons.OK,
                 MessageBoxType.Error);
         }
