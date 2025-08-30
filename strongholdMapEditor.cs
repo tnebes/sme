@@ -47,6 +47,8 @@ public static class Program
 
 public sealed class MainForm : Form
 {
+    private static readonly int CurrentYear = DateTime.Now.Year;
+    private const string Author = "tnebes";
     private readonly Label _selectedFileLabel;
     private readonly Label _statusLabel;
     private string _mapFilePath;
@@ -54,7 +56,7 @@ public sealed class MainForm : Form
     public MainForm()
     {
         this.Title = "Stronghold Map Editor";
-        this.ClientSize = new Size(450, 150);
+        this.ClientSize = new Size(450, 200);
         this.Resizable = false;
 
         Button openFileButton = new() { Text = "Open Map File" };
@@ -72,24 +74,43 @@ public sealed class MainForm : Form
         Button siegeButton = new() { Text = "Make Siege Map" };
         siegeButton.Click += (s, e) => this.UnlockOrChangeMap("Make Siege Map", [0x01, 0x00]);
 
-        this.Content = new StackLayout
+        GroupBox actionsGroupBox = new() { Text = "Map Actions" };
+        actionsGroupBox.Content = new StackLayout
         {
-            Padding = new Padding(10),
+            Orientation = Orientation.Horizontal,
+            Spacing = 5,
+            Items = { unlockButton, invasionButton, siegeButton }
+        };
+
+        Label footerLabel = new()
+        {
+            Text = $"By ${Author}, {CurrentYear}",
+            TextColor = Colors.Gray,
+            TextAlignment = TextAlignment.Center
+        };
+
+        StackLayout centerLayout = new()
+        {
             Spacing = 10,
-            Items =
+            Items = { actionsGroupBox, this._statusLabel }
+        };
+
+        TableLayout mainLayout = new()
+        {
+            Padding = new Padding(15),
+            Spacing = new Size(10, 10),
+            Rows =
             {
-                new StackLayout(
-                    new StackLayoutItem(openFileButton, HorizontalAlignment.Left),
-                    new StackLayoutItem(this._selectedFileLabel, HorizontalAlignment.Left)
-                ) { Orientation = Orientation.Horizontal, Spacing = 10 },
-                new TableLayout
-                {
-                    Spacing = new Size(5, 5),
-                    Rows = { new TableRow(unlockButton, invasionButton, siegeButton) }
-                },
-                this._statusLabel
+                new TableRow(new StackLayout(
+                    new StackLayoutItem(openFileButton),
+                    new StackLayoutItem(this._selectedFileLabel) { VerticalAlignment = VerticalAlignment.Center }
+                ) { Orientation = Orientation.Horizontal, Spacing = 10 }),
+                new TableRow(centerLayout) { ScaleHeight = true },
+                new TableRow(footerLabel)
             }
         };
+
+        this.Content = mainLayout;
     }
 
     private void OpenFilePicker()
@@ -100,15 +121,13 @@ public sealed class MainForm : Form
             Filters = { new FileFilter("Stronghold Map", ".map") }
         };
 
-        if (openDialog.ShowDialog(this) != DialogResult.Ok)
+        if (openDialog.ShowDialog(this) == DialogResult.Ok)
         {
-            return;
+            this._mapFilePath = openDialog.FileName;
+            this._selectedFileLabel.Text = Path.GetFileName(this._mapFilePath);
+            this._statusLabel.Text = $"Selected: {Path.GetFileName(this._mapFilePath)}";
+            Program.Log.Information("User selected map file: {FilePath}", this._mapFilePath);
         }
-
-        this._mapFilePath = openDialog.FileName;
-        this._selectedFileLabel.Text = Path.GetFileName(this._mapFilePath);
-        this._statusLabel.Text = $"Selected: {Path.GetFileName(this._mapFilePath)}";
-        Program.Log.Information("User selected map file: {FilePath}", this._mapFilePath);
     }
 
     private void UnlockOrChangeMap(string action, byte[] valueToWrite)
@@ -141,7 +160,7 @@ public sealed class MainForm : Form
             long writeOffset;
             if (action == "Unlock Map")
             {
-                writeOffset = finalOffsetBase - 1;
+                writeOffset = finalOffsetBase - 1; // Corrected off-by-one error
             }
             else
             {
@@ -157,15 +176,16 @@ public sealed class MainForm : Form
             string successMsg = $"Success! '{action}' applied to {Path.GetFileName(this._mapFilePath)}.";
             this._statusLabel.Text = successMsg;
             Program.Log.Information(successMsg);
-            MessageBox.Show(this,
-                "Map updated successfully!",
+            MessageBox.Show(
+                this,
+                $"Map updated successfully!\n(Wrote {valueToWrite.Length} bytes to offset {writeOffset:X})",
                 "Success", MessageBoxButtons.OK);
         }
         catch (Exception ex)
         {
             this._statusLabel.Text = $"Error: {ex.Message}";
             Program.Log.Error(ex, "An error occurred while trying to modify map file for action '{Action}'", action);
-            MessageBox.Show(this, $"An error occurred: {ex.Message}", "Error", MessageBoxButtons.OK,
+            MessageBox.Show(this, "An error occurred: {ex.Message}", "Error", MessageBoxButtons.OK,
                 MessageBoxType.Error);
         }
     }
