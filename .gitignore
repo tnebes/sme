@@ -1,3 +1,8 @@
 .vs
 bin
 obj
+resources
+sme.log
+.idea
+*.c
+Folder.DotSettings.user
