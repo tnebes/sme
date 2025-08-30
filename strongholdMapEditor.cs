@@ -1,5 +1,7 @@
 #region
 
+#region
+
 using System;
 using System.IO;
 using Eto;
@@ -9,7 +11,11 @@ using Serilog;
 
 #endregion
 
-public class Program
+namespace SME;
+
+#endregion
+
+public static class Program
 {
     public static ILogger Log { get; private set; }
 
@@ -58,13 +64,13 @@ public sealed class MainForm : Form
         this._statusLabel = new Label { Text = "Select a map file to begin." };
 
         Button unlockButton = new() { Text = "Unlock Map" };
-        unlockButton.Click += (s, e) => this.UnlockOrChangeMap("Unlock Map", new byte[] { 0x01, 0x00 });
+        unlockButton.Click += (s, e) => this.UnlockOrChangeMap("Unlock Map", [0x00, 0x00]);
 
         Button invasionButton = new() { Text = "Make Invasion Map" };
-        invasionButton.Click += (s, e) => this.UnlockOrChangeMap("Make Invasion Map", new byte[] { 0x00, 0x00 });
+        invasionButton.Click += (s, e) => this.UnlockOrChangeMap("Make Invasion Map", [0x00, 0x00]);
 
         Button siegeButton = new() { Text = "Make Siege Map" };
-        siegeButton.Click += (s, e) => this.UnlockOrChangeMap("Make Siege Map", new byte[] { 0x01, 0x00 });
+        siegeButton.Click += (s, e) => this.UnlockOrChangeMap("Make Siege Map", [0x01, 0x00]);
 
         this.Content = new StackLayout
         {
@@ -94,13 +100,15 @@ public sealed class MainForm : Form
             Filters = { new FileFilter("Stronghold Map", ".map") }
         };
 
-        if (openDialog.ShowDialog(this) == DialogResult.Ok)
+        if (openDialog.ShowDialog(this) != DialogResult.Ok)
         {
-            this._mapFilePath = openDialog.FileName;
-            this._selectedFileLabel.Text = Path.GetFileName(this._mapFilePath);
-            this._statusLabel.Text = $"Selected: {Path.GetFileName(this._mapFilePath)}";
-            Program.Log.Information("User selected map file: {FilePath}", this._mapFilePath);
+            return;
         }
+
+        this._mapFilePath = openDialog.FileName;
+        this._selectedFileLabel.Text = Path.GetFileName(this._mapFilePath);
+        this._statusLabel.Text = $"Selected: {Path.GetFileName(this._mapFilePath)}";
+        Program.Log.Information("User selected map file: {FilePath}", this._mapFilePath);
     }
 
     private void UnlockOrChangeMap(string action, byte[] valueToWrite)
@@ -150,14 +158,14 @@ public sealed class MainForm : Form
             this._statusLabel.Text = successMsg;
             Program.Log.Information(successMsg);
             MessageBox.Show(this,
-                "Map updated successfully!\n(Wrote {valueToWrite.Length} bytes to offset {write_offset:X})",
+                "Map updated successfully!",
                 "Success", MessageBoxButtons.OK);
         }
         catch (Exception ex)
         {
             this._statusLabel.Text = $"Error: {ex.Message}";
             Program.Log.Error(ex, "An error occurred while trying to modify map file for action '{Action}'", action);
-            MessageBox.Show(this, "An error occurred: {ex.Message}", "Error", MessageBoxButtons.OK,
+            MessageBox.Show(this, $"An error occurred: {ex.Message}", "Error", MessageBoxButtons.OK,
                 MessageBoxType.Error);
         }
     }
